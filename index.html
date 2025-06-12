@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Flappy Bird Ultimate</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+    html, body { height: 100%; background: #70c5ce; overflow: hidden; }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #70c5ce;
+    }
+
+    #score {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 32px;
+      color: white;
+      text-shadow: 2px 2px #333;
+      z-index: 2;
+    }
+
+    #gameOver {
+      display: none;
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 30px;
+      text-align: center;
+      border-radius: 12px;
+      box-shadow: 0 0 20px #000;
+      z-index: 999;
+    }
+
+    #gameOver h1 {
+      font-size: 2em;
+      margin-bottom: 15px;
+    }
+
+    #restartBtn {
+      margin-top: 15px;
+      padding: 10px 20px;
+      background: #ffca28;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    #restartBtn:hover {
+      background: #ffc107;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <div id="score">0</div>
+  <div id="gameOver">
+    <h1>Game Over</h1>
+    <p id="finalScore">Score: 0</p>
+    <button id="restartBtn">Restart</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const bgImg = new Image();
+    bgImg.src = 'https://i.imgur.com/rF4tN1p.png';
+
+    const birdImg = new Image();
+    birdImg.src = 'https://i.imgur.com/lNfZ5Xg.png'; // Flappy bird texture
+
+    const pipeTop = new Image();
+    pipeTop.src = 'https://i.imgur.com/OdL0XPt.png'; // Real top pipe
+
+    const pipeBottom = new Image();
+    pipeBottom.src = 'https://i.imgur.com/z0XDRZT.png'; // Real bottom pipe
+
+    const groundHeight = 100;
+    let bgX = 0;
+    let bird, pipes, score, gravity, lift, gameRunning = true;
+
+    function init() {
+      bird = {
+        x: 60,
+        y: 150,
+        width: 34,
+        height: 24,
+        velocity: 0
+      };
+
+      pipes = [];
+      gravity = 0.5;
+      lift = -8;
+      score = 0;
+      gameRunning = true;
+      pipes.push(createPipe());
+      bgX = 0;
+
+      document.getElementById('gameOver').style.display = 'none';
+      document.getElementById('score').innerText = '0';
+
+      enableInput();
+      loop();
+    }
+
+    function createPipe() {
+      const gap = 140;
+      const top = Math.floor(Math.random() * 200) + 50;
+      return {
+        x: canvas.width,
+        top: top,
+        bottom: top + gap,
+        width: 52,
+        speed: 2,
+        passed: false
+      };
+    }
+
+    function loop() {
+      if (!gameRunning) return;
+
+      // Scroll background
+      bgX -= 1;
+      if (bgX <= -canvas.width) bgX = 0;
+      ctx.drawImage(bgImg, bgX, 0, canvas.width, canvas.height);
+      ctx.drawImage(bgImg, bgX + canvas.width, 0, canvas.width, canvas.height);
+
+      // Pipes
+      pipes.forEach(pipe => {
+        pipe.x -= pipe.speed;
+
+        ctx.drawImage(pipeTop, pipe.x, 0, pipe.width, pipe.top);
+        ctx.drawImage(pipeBottom, pipe.x, pipe.bottom, pipe.width, canvas.height - pipe.bottom - groundHeight);
+
+        if (
+          bird.x + bird.width > pipe.x &&
+          bird.x < pipe.x + pipe.width &&
+          (bird.y < pipe.top || bird.y + bird.height > pipe.bottom)
+        ) {
+          gameOver();
+        }
+
+        if (!pipe.passed && pipe.x + pipe.width < bird.x) {
+          score++;
+          pipe.passed = true;
+          document.getElementById('score').innerText = score;
+        }
+      });
+
+      if (pipes[pipes.length - 1].x < canvas.width - 200) {
+        pipes.push(createPipe());
+      }
+
+      pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
+
+      // Gravity
+      bird.velocity += gravity;
+      bird.y += bird.velocity;
+
+      // Ground and top collision
+      if (bird.y + bird.height >= canvas.height - groundHeight || bird.y < 0) {
+        gameOver();
+      }
+
+      // Bird with slight rotation based on velocity
+      ctx.save();
+      ctx.translate(bird.x + bird.width / 2, bird.y + bird.height / 2);
+      ctx.rotate(Math.min(bird.velocity / 10, 0.5));
+      ctx.drawImage(birdImg, -bird.width / 2, -bird.height / 2, bird.width, bird.height);
+      ctx.restore();
+
+      // Ground
+      ctx.fillStyle = "#ded895";
+      ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
+
+      requestAnimationFrame(loop);
+    }
+
+    function flap() {
+      if (!gameRunning) return;
+      bird.velocity = lift;
+    }
+
+    function gameOver() {
+      gameRunning = false;
+      disableInput();
+      document.getElementById('gameOver').style.display = 'block';
+      document.getElementById('finalScore').innerText = 'Score: ' + score;
+    }
+
+    function disableInput() {
+      document.removeEventListener('keydown', flap);
+      canvas.removeEventListener('touchstart', flap);
+    }
+
+    function enableInput() {
+      document.addEventListener('keydown', flap);
+      canvas.addEventListener('touchstart', flap);
+    }
+
+    document.getElementById('restartBtn').addEventListener('click', init);
+    birdImg.onload = init; // start game once bird is loaded
+  </script>
+</body>
+</html>
